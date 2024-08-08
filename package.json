@@ -1,0 +1,19 @@
+{
+  "name": "webprog-anytone",
+  "version": "0.0.1",
+  "description": "Programming interface for Anytone radios using WebUSB",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jan Szumiec",
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^5.5.4",
+    "web-serial-polyfill": "^1.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.1.0",
+    "usb": "^2.13.0"
+  }
+}
