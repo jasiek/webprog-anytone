@@ -1,4 +1,4 @@
-import { SerialPort } from 'web-serial-polyfill'
+import { SerialPort } from 'web-serial-polyfill';
 
 export interface Radio {
     getProductID(): number;
@@ -7,7 +7,7 @@ export interface Radio {
     readCodeplug(): Promise<Uint8Array>;
 }
 
-class Anytone878UV implements Radio {
+export class Anytone878UV implements Radio {
     protocol: Anytone878UVProtocol;
 
     constructor(serialPort: SerialPort) {
@@ -30,6 +30,8 @@ class Anytone878UV implements Radio {
     async readCodeplug(): Promise<Uint8Array> {
         await this.protocol.enterProgramMode();
         await this.protocol.exitProgramMode();
+        // TODO fix later
+        return new Uint8Array();
     }
 }
 
@@ -63,7 +65,17 @@ class Anytone878UVProtocol {
         }
     }
 
-    async getRadioID(): Promise<string> {
+    async getRadioID(): Promise<Uint8Array> {
         await this.serialPort.writable?.getWriter().write(Anytone878UVProtocol.IDENTIFY_COMMAND);
+        let response = await this.serialPort.readable?.getReader().read();
+        switch (response?.value) {
+            case undefined:
+                throw new Error("No response from radio");
+            default:
+                if (response?.value === undefined) {
+                    throw new Error("No response from radio");
+                }
+                return response.value;
+        }
     }
 }

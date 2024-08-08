@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "es6", // Or a more recent version if required
+    "module": "commonjs", // Jest supports commonjs
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": true
+  }
+}
