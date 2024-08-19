@@ -5,5 +5,6 @@ module.exports = {
     '^.+\\.js$': 'babel-jest',
   },
   transformIgnorePatterns: ['node_modules/(?!web-serial-polyfill)/'],
+  runner: 'jest-serial-runner',
 };
 
