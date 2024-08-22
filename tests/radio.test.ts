@@ -10,7 +10,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    //await serialPort.close();
 })
 
 describe('Anytone878UV', () => {
@@ -24,7 +23,8 @@ describe('Anytone878UV', () => {
     it('should retrieve radio ID', async () => {
         let radio = new Anytone878UV(serialPort);
         await radio.open();
-        console.log(await radio.getRadioID());
+        let val = await radio.getRadioID();
+        console.log(val);
     });
 });
 

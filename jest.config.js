@@ -6,5 +6,6 @@ module.exports = {
   },
   transformIgnorePatterns: ['node_modules/(?!web-serial-polyfill)/'],
   runner: 'jest-serial-runner',
+  verbose: false
 };
 

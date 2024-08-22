@@ -44,6 +44,10 @@ export class Anytone878UV implements Radio {
         this.protocol = new Anytone878UVProtocol(reader, writer);
     }
 
+    async close() {
+        await this.serialPort.close();
+    }
+
     async getRadioID(): Promise<Uint8Array> {
         if (this.protocol === null) {
             throw new Error("Radio not open");
@@ -63,6 +67,7 @@ class Anytone878UVProtocol {
     static readonly ENTER_PROGRAM_MODE_ACK = new Uint8Array(Buffer.from("QX\x06"));
 
     static readonly EXIT_PROGRAM_MODE = new Uint8Array(Buffer.from("END"));
+    static readonly GENERIC_ACK = new Uint8Array(Buffer.from("\x06'"));
 
     static readonly IDENTIFY_COMMAND = new Uint8Array(Buffer.from("\x02"));
     
@@ -86,14 +91,17 @@ class Anytone878UVProtocol {
     async exitProgramMode(): Promise<void> {
         await this.writer.write(Anytone878UVProtocol.EXIT_PROGRAM_MODE);
         let response = await this.reader.read();
-        if (!compareByteArrays(response.value, Anytone878UVProtocol.ENTER_PROGRAM_MODE_ACK)) {
+        if (!compareByteArrays(response.value, Anytone878UVProtocol.GENERIC_ACK)) {
             throw new Error("Failed to exit program mode");
         }
     }
 
     async getRadioID(): Promise<Uint8Array> {
         await this.writer.write(Anytone878UVProtocol.IDENTIFY_COMMAND);
+        console.log('written');
         let response = await this.reader.read();
+        console.log('read');
+        console.log(response.value);
         switch (response.value) {
             case undefined:
                 throw new Error("No response from radio: undefined");
