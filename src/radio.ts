@@ -39,9 +39,7 @@ export class Anytone878UV implements Radio {
 
     async open() {
         await this.serialPort.open({ baudRate: 921600 });
-        let reader = this.serialPort.readable.getReader();
-        let writer = this.serialPort.writable.getWriter();
-        this.protocol = new Anytone878UVProtocol(reader, writer);
+        this.protocol = new Anytone878UVProtocol(this.serialPort.readable!, this.serialPort.writable!);
     }
 
     async close() {
@@ -57,6 +55,7 @@ export class Anytone878UV implements Radio {
             let val = await this.protocol.getRadioID();
             return val;
         } finally {
+            console.log('exit programmode')
             await this.protocol.exitProgramMode();
         }
     }
@@ -71,35 +70,62 @@ class Anytone878UVProtocol {
 
     static readonly IDENTIFY_COMMAND = new Uint8Array(Buffer.from("\x02"));
 
-    reader: ReadableStreamDefaultReader<Uint8Array>;
-    writer: WritableStreamDefaultWriter<Uint8Array>;
+    readStream: ReadableStream<Uint8Array>;
+    writeStream: WritableStream<Uint8Array>;
 
 
-    constructor(reader: ReadableStreamDefaultReader<Uint8Array>, writer: WritableStreamDefaultWriter<Uint8Array>) {
-        this.reader = reader;
-        this.writer = writer;
+    constructor(readStream: ReadableStream<Uint8Array>, writeStream: WritableStream<Uint8Array>) {
+        this.readStream = readStream;
+        this.writeStream = writeStream;
     }
 
     async enterProgramMode(): Promise<void> {
-        await this.writer.write(Anytone878UVProtocol.ENTER_PROGRAM_MODE);
-        let response = await this.reader.read();
+        let writer = this.writeStream.getWriter();
+        await writer.write(Anytone878UVProtocol.ENTER_PROGRAM_MODE);
+        writer.releaseLock();
+        await this.sleep(1000);
+        console.log('entered program mode');
+
+        let reader = this.readStream.getReader();
+        console.log(reader);
+        let response = await reader.read();
+        console.log('read');
+        reader.releaseLock();
+
         if (!compareByteArrays(response.value, Anytone878UVProtocol.ENTER_PROGRAM_MODE_ACK)) {
             throw new Error("Failed to enter program mode");
         }
     }
 
     async exitProgramMode(): Promise<void> {
-        await this.writer.write(Anytone878UVProtocol.EXIT_PROGRAM_MODE);
-        let response = await this.reader.read();
+        let writer = this.writeStream.getWriter();
+        await writer.write(Anytone878UVProtocol.EXIT_PROGRAM_MODE);
+        writer.releaseLock();
+
+        console.log('exited program mode');
+        await this.sleep(100); // Delay to allow radio to process command, devised by trial and error
+
+        let reader = this.readStream.getReader();
+        let response = await reader.read();
+        reader.releaseLock();
+        console.log(response.value);
+
         if (!compareByteArrays(response.value, Anytone878UVProtocol.GENERIC_ACK)) {
             throw new Error("Failed to exit program mode");
         }
     }
 
     async getRadioID(): Promise<Uint8Array> {
-        await this.writer.write(Anytone878UVProtocol.IDENTIFY_COMMAND);
-        console.log('written');
-        let response = await this.reader.read();
+        let writer = this.writeStream.getWriter();
+        await writer.write(Anytone878UVProtocol.IDENTIFY_COMMAND);
+        writer.releaseLock();
+        console.log('wrote identify command');
+        await this.sleep(100);
+
+        let reader = this.readStream.getReader();
+        let response = await reader.read();
+        reader.releaseLock();
+
         console.log('read');
         console.log(response.value);
         switch (response.value) {
@@ -111,6 +137,10 @@ class Anytone878UVProtocol {
                 }
                 return response.value;
         }
+    }
+
+    async sleep(ms = 100) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 
