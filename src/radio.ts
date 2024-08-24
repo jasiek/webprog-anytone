@@ -52,7 +52,7 @@ export class Anytone878UV implements Radio {
         if (this.protocol === null) {
             throw new Error("Radio not open");
         }
-        try { 
+        try {
             await this.protocol.enterProgramMode();
             let val = await this.protocol.getRadioID();
             return val;
@@ -67,10 +67,10 @@ class Anytone878UVProtocol {
     static readonly ENTER_PROGRAM_MODE_ACK = new Uint8Array(Buffer.from("QX\x06"));
 
     static readonly EXIT_PROGRAM_MODE = new Uint8Array(Buffer.from("END"));
-    static readonly GENERIC_ACK = new Uint8Array(Buffer.from("\x06'"));
+    static readonly GENERIC_ACK = new Uint8Array(Buffer.from("\x06"));
 
     static readonly IDENTIFY_COMMAND = new Uint8Array(Buffer.from("\x02"));
-    
+
     reader: ReadableStreamDefaultReader<Uint8Array>;
     writer: WritableStreamDefaultWriter<Uint8Array>;
 
