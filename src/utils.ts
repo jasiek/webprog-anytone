@@ -21,3 +21,9 @@ export function calculateChecksum(data: Uint8Array): number {
     console.log("checksum calculated = ", sum & 0xff);
     return sum & 0xFF;
 }
+export function log(message: string) {
+    if (log.debugMode) {
+        console.log(message);
+    }
+}
+log.debugMode = false;

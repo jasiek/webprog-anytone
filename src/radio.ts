@@ -1,4 +1,4 @@
-import { compareByteArrays, calculateChecksum } from './utils';
+import { compareByteArrays, calculateChecksum, log } from './utils';
 
 // This declaration is here so that the rest may be generic.
 interface ISerialBackend {
@@ -20,8 +20,12 @@ export interface Radio {
     //readCodeplug(): Promise<Uint8Array>;
 }
 
+
+// This value was established experimentally, and is suitable for running it from the command line at a baud rate of 921600
+const SLEEP_TIME = 15;
+
 export class Anytone878UV implements Radio {
-    static readonly MEMORY_LOW = 0x00800000
+    static readonly MEMORY_LOW = 0x0800000
     static readonly MEMORY_HIGH = 0x7680000
     serialPort: ISerialPort;
     protocol: Anytone878UVProtocol | null;
@@ -59,7 +63,6 @@ export class Anytone878UV implements Radio {
             let val = await this.protocol.getRadioID();
             return val;
         } finally {
-            console.log('exit programmode')
             await this.protocol.exitProgramMode();
         }
     }
@@ -70,18 +73,17 @@ export class Anytone878UV implements Radio {
         }
         try {
             await this.protocol.enterProgramMode();
+            log(`Reading memory from ${Anytone878UV.MEMORY_LOW.toString(16)} to ${Anytone878UV.MEMORY_HIGH.toString(16)}, ${Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW} bytes`);
             let memory = new Uint8Array(Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW);
             let addr = Anytone878UV.MEMORY_LOW;
             while (addr < Anytone878UV.MEMORY_HIGH) {
                 let data = await this.protocol.readMemory(addr);
                 memory.set(data, addr - Anytone878UV.MEMORY_LOW);
-                console.log('read memory at', addr.toString(16));
-                console.log(data);
                 addr += 255;
             }
             return memory;
         } catch (e) {
-            console.log(e);
+            log(e.toString());
             throw e;
         } finally {
             await this.protocol.exitProgramMode();
@@ -103,13 +105,13 @@ class Anytone878UVProtocol {
     readStream: ReadableStream<Uint8Array>;
     writeStream: WritableStream<Uint8Array>;
 
-
     constructor(readStream: ReadableStream<Uint8Array>, writeStream: WritableStream<Uint8Array>) {
         this.readStream = readStream;
         this.writeStream = writeStream;
     }
 
     async enterProgramMode(): Promise<void> {
+        log("Entering program mode");
         let writer = this.writeStream.getWriter();
         await writer.write(Anytone878UVProtocol.CMD_PROGRAM_MODE);
         writer.releaseLock();
@@ -125,12 +127,12 @@ class Anytone878UVProtocol {
     }
 
     async exitProgramMode(): Promise<void> {
+        log("Exiting program mode");
         let writer = this.writeStream.getWriter();
         await writer.write(Anytone878UVProtocol.CMD_EXIT_PROGRAM_MODE);
         writer.releaseLock();
 
-        console.log('exited program mode');
-        await this.sleep(100); // Delay to allow radio to process command, devised by trial and error
+        await this.sleep(SLEEP_TIME); // Delay to allow radio to process command, devised by trial and error
 
         let reader = this.readStream.getReader();
         let response = await reader.read();
@@ -143,18 +145,16 @@ class Anytone878UVProtocol {
     }
 
     async getRadioID(): Promise<Uint8Array> {
+        log("Getting radio ID");
         let writer = this.writeStream.getWriter();
         await writer.write(Anytone878UVProtocol.CMD_IDENTIFY);
         writer.releaseLock();
-        console.log('wrote identify command');
-        await this.sleep(100);
+        await this.sleep(SLEEP_TIME);
 
         let reader = this.readStream.getReader();
         let response = await reader.read();
         reader.releaseLock();
 
-        console.log('read');
-        console.log(response.value);
         switch (response.value) {
             case undefined:
                 throw new Error("No response from radio: undefined");
@@ -169,20 +169,21 @@ class Anytone878UVProtocol {
     async readMemory(address: number): Promise<Uint8Array> {
         let addr = numberToAddress(address);
         let howMuchToRead = 255;
+        log(`Reading memory at address ${address.toString(16)}, ${howMuchToRead} bytes`);
 
         let cmd = new Uint8Array(6);
         cmd.set(Anytone878UVProtocol.CMD_READ, 0);
         cmd.set(addr, 1);
         cmd.set([howMuchToRead], 5); // Read 255 bytes at once
-        console.log('read memory command', cmd);
+        log(`Read memory command to send: ${cmd}`);
 
         let writer = this.writeStream.getWriter();
         await writer.write(cmd);
         writer.releaseLock();
 
-        await this.sleep(100);
+        await this.sleep(SLEEP_TIME);
 
-        console.log('about top read response');
+        log("About to read response");
         let reader = this.readStream.getReader();
         let finished = false;
         let response = { done: false, value: new Uint8Array(0) };
@@ -190,15 +191,14 @@ class Anytone878UVProtocol {
         while (!finished) {
             let response = await reader.read();
             if (response.value) {
-                console.log('read bytes:', response.value.length);
+                log(`Read ${response.value.length} bytes: ${response.value}`);
                 content = new Uint8Array([...content, ...response.value]);
             } else {
-                console.log('read bytes: undefined');
+                finished = true;
+                break;
             }
-            console.log(response)
             finished = (response.done || content.length == 263);
-            console.log('---');
-            console.log('finished: ', finished);
+            log(`--- finished: ${finished}`);
         }
         reader.releaseLock();
 
@@ -227,7 +227,7 @@ class Anytone878UVProtocol {
         let ack = content.slice(255 + 6 + 1, 255 + 7 + 1);
 
         if (calculateChecksum(dataForChecksum) !== checksum[0]) {
-            console.log("chedcksum received: ", checksum[0]);
+            log(`checksum received: ${checksum[0]}, calculated: ${calculateChecksum(dataForChecksum)}`);
             throw new Error("Checksum does not match");
         }
 

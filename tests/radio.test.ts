@@ -1,5 +1,6 @@
+import { debug } from 'console';
 import { Anytone878UV } from '../src/radio';
-import { compareByteArrays, calculateChecksum } from '../src/utils';
+import { compareByteArrays, calculateChecksum, log } from '../src/utils';
 import { Serial, SerialPort } from 'webserial';
 
 let serialPort: SerialPort;
@@ -8,6 +9,7 @@ describe('Anytone878UV', () => {
     before(async () => {
         let s = new Serial({ requestPortHook: (ports: Array<Object>) => { return ports[0] } });
         serialPort = await s.requestPort({ filters: [{ usbVendorId: 0x28e9, usbProductId: 0x018a }] });
+        log.debugMode = true;
     });
 
     after(async () => {
