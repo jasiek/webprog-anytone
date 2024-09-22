@@ -1,4 +1,4 @@
-import { compareByteArrays } from './utils';
+import { compareByteArrays, calculateChecksum } from './utils';
 
 // This declaration is here so that the rest may be generic.
 interface ISerialBackend {
@@ -72,13 +72,17 @@ export class Anytone878UV implements Radio {
             await this.protocol.enterProgramMode();
             let memory = new Uint8Array(Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW);
             let addr = Anytone878UV.MEMORY_LOW;
-            while (addr <= Anytone878UV.MEMORY_HIGH) {
+            while (addr < Anytone878UV.MEMORY_HIGH) {
                 let data = await this.protocol.readMemory(addr);
                 memory.set(data, addr - Anytone878UV.MEMORY_LOW);
+                console.log('read memory at', addr.toString(16));
                 console.log(data);
                 addr += 255;
             }
             return memory;
+        } catch (e) {
+            console.log(e);
+            throw e;
         } finally {
             await this.protocol.exitProgramMode();
         }
@@ -163,11 +167,13 @@ class Anytone878UVProtocol {
     }
 
     async readMemory(address: number): Promise<Uint8Array> {
+        let addr = numberToAddress(address);
+        let howMuchToRead = 255;
+
         let cmd = new Uint8Array(6);
         cmd.set(Anytone878UVProtocol.CMD_READ, 0);
-        let addr = numberToAddress(address);
         cmd.set(addr, 1);
-        cmd.set([0xff], 5); // Read 255 bytes at once
+        cmd.set([howMuchToRead], 5); // Read 255 bytes at once
         console.log('read memory command', cmd);
 
         let writer = this.writeStream.getWriter();
@@ -180,41 +186,53 @@ class Anytone878UVProtocol {
         let reader = this.readStream.getReader();
         let finished = false;
         let response = { done: false, value: new Uint8Array(0) };
+        let content = new Uint8Array(0);
         while (!finished) {
             let response = await reader.read();
-            console.log(response)
-            if (response.done) {
-                finished = true;
+            if (response.value) {
+                console.log('read bytes:', response.value.length);
+                content = new Uint8Array([...content, ...response.value]);
+            } else {
+                console.log('read bytes: undefined');
             }
+            console.log(response)
+            finished = (response.done || content.length == 263);
+            console.log('---');
+            console.log('finished: ', finished);
         }
         reader.releaseLock();
 
-        console.log(response);
-
         // We are expecting 1 + 4 + 1 + 255 + 1 + 1 = 263 bytes
-        if (response.value === undefined || response.value.length !== 263) {
+        if (content.length !== 263) {
             throw new Error("Invalid response length");
         }
 
-        if (response.value[0] !== Anytone878UVProtocol.CMD_WRITE[0]) {
+        if (content[0] !== Anytone878UVProtocol.CMD_WRITE[0]) {
             throw new Error("Radio should respond with the W (write) command");
         }
 
-        let addrResponse = response.value.slice(1, 5);
+        let addrResponse = content.slice(1, 5);
         if (!compareByteArrays(addrResponse, addr)) {
-            throw new Error("Response address does not match request address");
+            throw new Error(`Response address does not match request address ${addr} != ${addrResponse}`);
         }
 
-        let data = response.value.slice(6, 255);
-        let checksum = response.value.slice(255 + 6, 1);
-        let ack = response.value.slice(255 + 6 + 1, 1);
+        let lengthResponse = content.slice(5, 6);
+        if (lengthResponse[0] !== howMuchToRead) {
+            throw new Error(`Response length does not match request length: ${lengthResponse}`);
+        }
 
-        if (calculateChecksum(data) !== checksum[0]) {
+        let data = content.slice(6, 255 + 6);
+        let dataForChecksum = content.slice(1, 255 + 6);
+        let checksum = content.slice(255 + 6, 255 + 7);
+        let ack = content.slice(255 + 6 + 1, 255 + 7 + 1);
+
+        if (calculateChecksum(dataForChecksum) !== checksum[0]) {
+            console.log("chedcksum received: ", checksum[0]);
             throw new Error("Checksum does not match");
         }
 
-        if (compareByteArrays(ack, Anytone878UVProtocol.GENERIC_ACK)) {
-            throw new Error("Radio did not acknowledge the read command");
+        if (!compareByteArrays(ack, Anytone878UVProtocol.GENERIC_ACK)) {
+            throw new Error(`Radio did not acknowledge the read command: ${ack} != ${Anytone878UVProtocol.GENERIC_ACK}`);
         }
 
         return data;
@@ -234,13 +252,6 @@ function numberToAddress(n: number): Uint8Array {
     return arr;
 }
 
-function calculateChecksum(data: Uint8Array): number {
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-        sum += data[i];
-    }
-    return sum & 0xFF;
-}
 
 export async function getBackend(): Promise<ISerialBackend> {
     const mod = await import('web-serial-polyfill');

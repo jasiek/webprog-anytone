@@ -1,5 +1,5 @@
 import { Anytone878UV } from '../src/radio';
-import { compareByteArrays } from '../src/utils';
+import { compareByteArrays, calculateChecksum } from '../src/utils';
 import { Serial, SerialPort } from 'webserial';
 
 let serialPort: SerialPort;
@@ -34,4 +34,11 @@ describe('Anytone878UV', () => {
             throw new Error("Codeplug length does not match");
         }
     }).timeout(5000);
+
+    it('should calculate the checksum', () => {
+        let data = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        if (calculateChecksum(data) !== 55) {
+            throw new Error("Checksum does not match");
+        }
+    });
 });
