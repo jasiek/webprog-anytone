@@ -82,7 +82,7 @@ export class Anytone878UV implements Radio {
                 addr += 255;
             }
             return memory;
-        } catch (e) {
+        } catch (e: any) {
             log(e.toString());
             throw e;
         } finally {
