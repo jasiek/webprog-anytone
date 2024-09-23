@@ -79,15 +79,14 @@ export class Anytone878UVProtocol {
         }
     }
 
-    async readMemory(address: number): Promise<Uint8Array> {
+    async readMemory(address: number, chunkSize: number): Promise<Uint8Array> {
         let addr = numberToAddress(address);
-        let howMuchToRead = 255;
-        log(`Reading memory at address ${address.toString(16)}, ${howMuchToRead} bytes`);
+        log(`Reading memory at address ${address.toString(16)}, ${chunkSize} bytes`);
 
         let cmd = new Uint8Array(6);
         cmd.set(Anytone878UVProtocol.CMD_READ, 0);
         cmd.set(addr, 1);
-        cmd.set([howMuchToRead], 5); // Read 255 bytes at once
+        cmd.set([chunkSize], 5); // Read 255 bytes at once
         log(`Read memory command to send: ${cmd}`);
 
         let writer = this.writeStream.getWriter();
@@ -116,7 +115,7 @@ export class Anytone878UVProtocol {
         reader.releaseLock();
 
         // We are expecting 1 + 4 + 1 + 255 + 1 + 1 = 263 bytes
-        if (content.length !== 263) {
+        if (content.length !== chunkSize + 8) {
             throw new Error("Invalid response length");
         }
 
@@ -130,14 +129,14 @@ export class Anytone878UVProtocol {
         }
 
         let lengthResponse = content.slice(5, 6);
-        if (lengthResponse[0] !== howMuchToRead) {
+        if (lengthResponse[0] !== chunkSize) {
             throw new Error(`Response length does not match request length: ${lengthResponse}`);
         }
 
-        let data = content.slice(6, 255 + 6);
-        let dataForChecksum = content.slice(1, 255 + 6);
-        let checksum = content.slice(255 + 6, 255 + 7);
-        let ack = content.slice(255 + 6 + 1, 255 + 7 + 1);
+        let data = content.slice(6, chunkSize + 6);
+        let dataForChecksum = content.slice(1, chunkSize + 6);
+        let checksum = content.slice(255 + 6, chunkSize + 7);
+        let ack = content.slice(255 + 6 + 1, chunkSize + 7 + 1);
 
         if (calculateChecksum(dataForChecksum) !== checksum[0]) {
             log(`checksum received: ${checksum[0]}, calculated: ${calculateChecksum(dataForChecksum)}`);

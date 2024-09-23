@@ -73,10 +73,11 @@ export class Anytone878UV implements Radio {
             log(`Reading memory from ${Anytone878UV.MEMORY_LOW.toString(16)} to ${Anytone878UV.MEMORY_HIGH.toString(16)}, ${Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW} bytes`);
             let memory = new Uint8Array(Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW);
             let addr = Anytone878UV.MEMORY_LOW;
+            let chunkSize = 255;
             while (addr < Anytone878UV.MEMORY_HIGH) {
-                let data = await this.protocol.readMemory(addr);
+                let data = await this.protocol.readMemory(addr, chunkSize);
                 memory.set(data, addr - Anytone878UV.MEMORY_LOW);
-                addr += 255;
+                addr += chunkSize;
             }
             return memory;
         } catch (e: any) {
