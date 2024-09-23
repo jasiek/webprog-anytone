@@ -22,8 +22,10 @@ export interface Radio {
 }
 
 export class Anytone878UV implements Radio {
-    static readonly MEMORY_LOW = 0x0800000
-    static readonly MEMORY_HIGH = 0x7680000
+    static readonly CODEPLUG_LOW = 0x0800000
+    static readonly CODEPLUG_HIGH = 0x4000000
+    static readonly CALLDB_LOW = 0x4000000
+    static readonly CALLDB_HIGH = 0x7680000
     serialPort: ISerialPort;
     protocol: Anytone878UVProtocol | null;
 
@@ -70,13 +72,13 @@ export class Anytone878UV implements Radio {
         }
         try {
             await this.protocol.enterProgramMode();
-            log(`Reading memory from ${Anytone878UV.MEMORY_LOW.toString(16)} to ${Anytone878UV.MEMORY_HIGH.toString(16)}, ${Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW} bytes`);
-            let memory = new Uint8Array(Anytone878UV.MEMORY_HIGH - Anytone878UV.MEMORY_LOW);
-            let addr = Anytone878UV.MEMORY_LOW;
+            log(`Reading memory from ${Anytone878UV.CODEPLUG_LOW.toString(16)} to ${Anytone878UV.CODEPLUG_HIGH.toString(16)}, ${Anytone878UV.CODEPLUG_HIGH - Anytone878UV.CODEPLUG_LOW} bytes`);
+            let memory = new Uint8Array(Anytone878UV.CODEPLUG_HIGH - Anytone878UV.CODEPLUG_LOW);
+            let addr = Anytone878UV.CODEPLUG_LOW;
             let chunkSize = 255;
-            while (addr < Anytone878UV.MEMORY_HIGH) {
+            while (addr < Anytone878UV.CODEPLUG_HIGH) {
                 let data = await this.protocol.readMemory(addr, chunkSize);
-                memory.set(data, addr - Anytone878UV.MEMORY_LOW);
+                memory.set(data, addr - Anytone878UV.CODEPLUG_LOW);
                 addr += chunkSize;
             }
             return memory;
